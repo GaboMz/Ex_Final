@@ -1,0 +1,306 @@
+using System;
+using System.Collections.Generic;
+
+class Program
+{
+    static void Main()
+    {
+        SistemaTrafico sistema = new SistemaTrafico();
+        bool salir = false;
+
+        while (!salir)
+        {
+            Console.WriteLine("  SISTEMA DE GESTION DE TRAFICO Y CACHE ");
+
+            Console.WriteLine("1. Encolar nuevo paquete, agregando una nueva IP");
+            Console.WriteLine("2. Procesar paquetes en cola, agregando la IP al cache");
+            Console.WriteLine("3. Mostrar historial de IPs, dentro del cache");
+            Console.WriteLine("4. Buscar una IP dentro del cache");
+            Console.WriteLine("5. Ejecutar limpieza, eliminando una IP en especifico");
+            Console.WriteLine("6. Simular trafico alto (Prueba limite 100)");
+            Console.WriteLine("7. Salir");
+            Console.Write("Elija una opcion: ");
+           
+
+            string opcion = Console.ReadLine();
+            Console.WriteLine();
+
+            switch (opcion)
+            {
+                case "1":
+                    Console.Write("Ingrese IP de Origen: ");
+                    string ipOrigen = Console.ReadLine();
+                    Console.Write("Ingrese IP de Destino: ");
+                    string ipDestino = Console.ReadLine();
+                    Console.Write("Ingrese Tamano del Payload (bytes): ");
+                    string tamanoStr = Console.ReadLine();
+
+                    int tamano = 0;
+                    int.TryParse(tamanoStr, out tamano);
+
+                    sistema.EncolarPaquete(new Paquete(ipOrigen, ipDestino, tamano));
+                    break;
+
+                case "2":
+                    sistema.ProcesarPaquetes();
+                    break;
+
+                case "3":
+                    sistema.MostrarHistoriales();
+                    break;
+
+                case "4":
+                    Console.Write("Ingrese la IP a buscar en Cache: ");
+                    string ipBusqueda = Console.ReadLine();
+                    sistema.BuscarEnCache(ipBusqueda);
+                    break;
+
+                case "5":
+                    Console.Write("Ingrese la IP a eliminar (Limpieza): ");
+                    string ipLimpieza = Console.ReadLine();
+                    sistema.LimpiezaDeSeguridad(ipLimpieza);
+                    break;
+
+                case "6":
+                    sistema.SimularTraficoMasivo();
+                    break;
+
+                case "7":
+                    salir = true;
+                    Console.WriteLine("Saliendo del sistema...");
+                    break;
+
+                default:
+                    Console.WriteLine("Opcion no valida. Intente de nuevo.");
+                    break;
+            }
+            Console.WriteLine();
+            
+        }
+    }
+}
+
+public class Paquete
+{
+    public string IpOrigen { get; set; }
+    public string IpDestino { get; set; }
+    public int TamanoPayload { get; set; }
+
+    public Paquete(string origen, string destino, int tamano)
+    {
+        IpOrigen = origen;
+        IpDestino = destino;
+        TamanoPayload = tamano;
+    }
+}
+public class Nodo
+{
+    public string Ip { get; set; }
+    public Nodo Siguiente { get; set; }
+    public Nodo Anterior { get; set; }
+
+    public Nodo(string ip)
+    {
+        Ip = ip;
+        Siguiente = null;
+        Anterior = null;
+    }
+}
+
+// Registro de Historial Bidireccional
+public class HistorialBidireccional
+{
+    private Nodo cabeza;
+    private Nodo cola;
+    private int contador;
+
+    public HistorialBidireccional()
+    {
+        cabeza = null;
+        cola = null;
+        contador = 0;
+    }
+    public void Agregar(string ip)
+    {
+        Nodo nuevoNodo = new Nodo(ip);
+
+        if (cabeza == null)
+        {
+            cabeza = nuevoNodo;
+            cola = nuevoNodo;
+        }
+        else
+        {
+            // Agregamos al final
+            cola.Siguiente = nuevoNodo;
+            nuevoNodo.Anterior = cola;
+            cola = nuevoNodo;
+        }
+        contador++;
+
+        // Si supera los 100 registros eliminar el mas antiguo
+        if (contador > 100)
+        {
+            EliminarMasAntiguo();
+        }
+    }
+
+    private void EliminarMasAntiguo()
+    {
+        if (cabeza != null)
+        {
+            Console.WriteLine("Existen mas de 100 registros, eliminando el mas antiguo... " + cabeza.Ip);
+            cabeza = cabeza.Siguiente;
+            if (cabeza != null)
+            {
+                cabeza.Anterior = null;
+            }
+            contador--;
+        }
+    }
+
+    //Eliminar un registro de IP en especifico
+    public void EliminarEspecifico(string ip)
+    {
+        Nodo actual = cabeza;
+        while (actual != null)
+        {
+            if (actual.Ip == ip)
+            {
+                if (actual.Anterior != null)
+                {
+                    actual.Anterior.Siguiente = actual.Siguiente;
+                }
+                else
+                {
+                    cabeza = actual.Siguiente; // Si era el primer elemento
+                }
+
+                if (actual.Siguiente != null)
+                {
+                    actual.Siguiente.Anterior = actual.Anterior;
+                }
+                else
+                {
+                    cola = actual.Anterior; // Si era el ultimo elemento
+                }
+
+                contador--;
+                Console.WriteLine("La IP fue desenlazada del historial bidireccional... " + ip);
+                return;
+            }
+            actual = actual.Siguiente;
+        }
+    }
+
+    public void RecorrerAdelante()
+    {
+        Console.WriteLine("Historial del mas antiguo al mas reciente");
+        Nodo actual = cabeza;
+        int i = 1;
+        while (actual != null)
+        {
+            Console.WriteLine(i.ToString() + ". Historial IP: " + actual.Ip);
+            actual = actual.Siguiente;
+            i++;
+        }
+    }
+
+    public void RecorrerAtras()
+    {
+        Console.WriteLine("Historial del mas reciente a mas antiguo");
+        Nodo actual = cola;
+        int i = contador;
+        while (actual != null)
+        {
+            Console.WriteLine(i.ToString() + ". Historial IP: " + actual.Ip);
+            actual = actual.Anterior;
+            i--;
+        }
+    }
+}
+
+public class SistemaTrafico
+{
+    private Queue<Paquete> colaRecepcion = new Queue<Paquete>();
+    private HistorialBidireccional historial = new HistorialBidireccional();
+    private Dictionary<string, bool> cacheConfianza = new Dictionary<string, bool>();
+
+    public void EncolarPaquete(Paquete p)
+    {
+        colaRecepcion.Enqueue(p);
+        Console.WriteLine("Encolando: " + p.IpOrigen + " tamano: " + p.TamanoPayload.ToString() + " bytes");
+    }
+
+    public void ProcesarPaquetes()
+    {
+        if (colaRecepcion.Count == 0)
+        {
+            Console.WriteLine("La cola de recepcion esta vacia");
+            return;
+        }
+
+        Console.WriteLine("Desencolando paquetes");
+        while (colaRecepcion.Count > 0)
+        {
+            Paquete p = colaRecepcion.Dequeue();
+            Console.WriteLine("Procesando paquete X... IP origen " + p.IpOrigen);
+            historial.Agregar(p.IpOrigen);
+            Console.WriteLine("IP anadida al historial...");
+            // Guardamos en Cache
+            if (!cacheConfianza.ContainsKey(p.IpOrigen))
+            {
+                cacheConfianza.Add(p.IpOrigen, true);
+                Console.WriteLine("IP guardada en cache de confianza.");
+            }
+        }
+    }
+
+    public void BuscarEnCache(string ip)
+    {
+        Console.WriteLine("Buscando la IP en cache de confianza");
+        if (cacheConfianza.ContainsKey(ip))
+        {
+            Console.WriteLine("IP encontrada en cache " + ip);
+        }
+        else
+        {
+            Console.WriteLine("La IP no se encuentra en la cache " + ip);
+        }
+    }
+
+    public void LimpiezaDeSeguridad(string ipInsegura)
+    {
+        Console.WriteLine("Iniciando limpieza de seguridad para IP " + ipInsegura);
+
+        if (cacheConfianza.ContainsKey(ipInsegura))
+        {
+            cacheConfianza.Remove(ipInsegura);
+            Console.WriteLine("IP eliminada de la cache");
+            Console.WriteLine("Buscando en la lista doble");
+            historial.EliminarEspecifico(ipInsegura);
+        }
+        else
+        {
+            Console.WriteLine("La IP ingresada no existe en la Cache de Confianza.");
+        }
+    }
+
+    public void MostrarHistoriales()
+    {
+        historial.RecorrerAdelante();
+        Console.WriteLine();
+        historial.RecorrerAtras();
+    }
+
+    //Trafico masivo para mas de 100 registros
+    public void SimularTraficoMasivo()
+    {
+        Console.WriteLine("Simulando trafico de 105 IPs para probar el limite de memoria");
+        for (int i = 1; i <= 105; i++)
+        {
+            historial.Agregar("192.168.1." + i.ToString());
+        }
+        Console.WriteLine("Revisa el historial para ver el resultado.");
+    }
+}
